@@ -52,31 +52,29 @@ class MINI_CoM:
 
     def transform_CoM(self):
         """
-        Transform all CoM positions from link frame to base frame
+        TODO: transform all CoM positions from link frame to base frame
+
+        Tips:
+        - self.tfBuffer.lookup_transform(frame1, frame2) gets transform from two coord frames
+        - Use tf_geo.do_transform_point(transform, point) to apply transform where point
+            is ros_msg type geometry_msgs.msg.PointStamped()
+        - To get position in link frame -> self.link_info[link]['origin']['xyz']
+        - To get mass information -> self.link_info[link]['mass']
         """
-        self.transformed_coms = []  # List to store transformed CoM positions
+        self.transformed_coms = []
         for link in self.link_info.keys():
             try:
-                # Get the transformation from the base frame to the link frame
                 trans = self.tfBuffer.lookup_transform(
                     self.base_link_frame, link, rospy.Time())
-
-                # Get the CoM position and mass from the link_info dictionary
                 link_com = self.link_info[link]['origin']['xyz']
                 mass = self.link_info[link]['mass']
-
-                # Create a PointStamped message for the link's CoM position
                 point_stamped = geometry_msgs.msg.PointStamped()
-                point_stamped.header.frame_id = link  # Link's frame of reference
+                point_stamped.header.frame_id = link
                 point_stamped.point.x = link_com[0]
                 point_stamped.point.y = link_com[1]
                 point_stamped.point.z = link_com[2]
-
-                # Transform the CoM point to the base frame using tf2_geometry_msgs
                 transformed_point = tf_geo.do_transform_point(
                     point_stamped, trans)
-
-                # Store transformed CoM position and its corresponding mass
                 self.transformed_coms.append({
                     'link': link,
                     'transformed_com': transformed_point.point,
@@ -88,27 +86,21 @@ class MINI_CoM:
 
     def calculate_CoM(self):
         """
-        Calculate the whole body CoM (Center of Mass)
+        TODO: Calculate whole body CoM 
         """
         total_mass = 0
         weighted_sum_x = 0
         weighted_sum_y = 0
         weighted_sum_z = 0
 
-        # Loop through the transformed CoM data for each link
         for com_data in self.transformed_coms:
             mass = com_data['mass']
             com = com_data['transformed_com']
-
-            # Accumulate the weighted sums of CoM positions
             weighted_sum_x += mass * com.x
             weighted_sum_y += mass * com.y
             weighted_sum_z += mass * com.z
-
-            # Accumulate the total mass
             total_mass += mass
 
-        # Calculate the final CoM position (weighted average)
         if total_mass > 0:
             self.com_x = weighted_sum_x / total_mass
             self.com_y = weighted_sum_y / total_mass
