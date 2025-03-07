@@ -5,13 +5,15 @@ from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from robotis_mini import RobotisMini
 from dynamic_reconfigure.server import Server
 from robotis_mini_control.cfg import RobotisMiniConfig
+import numpy as np
+import scipy.signal as signal
 
 # Parameters for generating wave inputs
 start_time = 0.0       # seconds
 end_time = 30.0        # seconds
 control_period_ = 0.001  # seconds (sample time)
 freq_n = 0.25          # Hz (natural frequency)
-amplitude = 30         # mm (amplitude)
+amplitude = 60         # mm (amplitude)
 # max x direction : 30 mm
 # min x direction : -60 mm
 # max y direction : 60 mm
@@ -88,12 +90,9 @@ def sine_wave_input():
     global control_period_
     global freq_n
     global amplitude
-    t = start_time
-    wave_signal = []
-    while t <= end_time:
-        value = amplitude * math.sin(2 * math.pi * freq_n * t)
-        wave_signal.append(value)
-        t += control_period_
+    t = np.arange(start_time, end_time, control_period_)
+    phase_offset = np.pi*2/12
+    wave_signal = amplitude * np.sin(2 * np.pi * freq_n * t + phase_offset)
     return wave_signal
 
 
@@ -107,18 +106,10 @@ def triangle_wave_input():
     global control_period_
     global freq_n
     global amplitude
-    t = start_time
-    wave_signal = []
-    period = 1.0 / freq_n
-    while t <= end_time:
-        t_mod = t % period
-        if t_mod < period / 2:
-            value = (2 * amplitude / (period / 2)) * t_mod - amplitude
-        else:
-            value = - (2 * amplitude / (period / 2)) * \
-                (t_mod - period/2) + amplitude
-        wave_signal.append(value)
-        t += control_period_
+    t = np.arange(start_time, end_time, control_period_)
+    phase_offset = np.pi*13/24
+    wave_signal = amplitude * \
+        signal.sawtooth(2 * np.pi * freq_n * t + phase_offset, 0.5)
     return wave_signal
 
 
@@ -144,10 +135,6 @@ def execute_variable_foot_position(robot, z_foot_pos):
         wave_signal = triangle_wave_input()
 
     time_from_start = 0.0
-    x_offset = 0
-    y_offset = 0
-
-    time_from_start = 0.0
     traj_msg = JointTrajectory()
     traj_msg.header.stamp = rospy.Time.now()
     traj_msg.joint_names = [
@@ -157,10 +144,10 @@ def execute_variable_foot_position(robot, z_foot_pos):
         'l_hip_joint', 'l_thigh_joint', 'l_knee_joint', 'l_ankle_joint', 'l_foot_joint'
     ]
 
-    for offset in wave_signal:
+    for i in range(len(wave_signal)):
         time_from_start += control_period_
         x_offset = 0
-        y_offset = offset
+        y_offset = wave_signal[i]
 
         joint_values_right_hand = [0, 0, 0]
         joint_values_left_hand = [0, 0, 0]
